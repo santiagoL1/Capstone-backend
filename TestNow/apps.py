@@ -1,6 +1,4 @@
 from django.apps import AppConfig
 
-
-class UsersConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'users'
+class TestNowConfig(AppConfig):
+    name = 'TestNow'  # Ensure this matches your app's folder name

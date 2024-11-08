@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' "/Users/whogenkamp3/Computer Science/Capstoner/Capstone-backend/venv/bin/python3.12" "$0" "$@"
+'''exec' "/Users/whogenkamp3/Computer Science/Capstoner/capstone-backend/venv/bin/python" "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re
