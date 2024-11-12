@@ -7,3 +7,6 @@ urlpatterns = [
     #path('user/', UserDetailView.as_view(), name='user-detail'),
     path('user/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
 ]
+
+
+# hi
