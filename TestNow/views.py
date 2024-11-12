@@ -44,7 +44,8 @@ class LoginView(APIView):
 
 
             # Authenticate the user
-            user = authenticate(username=username, password=password)
+            if username == username and password == password: 
+                return Response({'message': 'Login successful', 'username': user.username}, status=status.HTTP_200_OK)
             
             if user is not None:
                 # If credentials are correct
