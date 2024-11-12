@@ -1,10 +1,4 @@
 from django.db import models
-from django.views import View
-from django.http import JsonResponse
-from django.contrib.auth.hashers import check_password
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-import json
 
 class User(models.Model):
     user_id = models.AutoField(primary_key=True)
@@ -20,7 +14,7 @@ class User(models.Model):
         return f"{self.username} ({self.email})"
 
 
-class Class(models.Model):
+class ClassTable(models.Model):
     class_id = models.AutoField(primary_key=True)
     class_name = models.CharField(max_length=100)
     university = models.CharField(max_length=100, blank=True, null=True)
@@ -35,7 +29,7 @@ class Class(models.Model):
 class UserClass(models.Model):
     user_class_id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    class_model = models.ForeignKey(Class, on_delete=models.CASCADE)
+    class_model = models.ForeignKey(ClassTable, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.user.username} - {self.class_model.class_name}"
@@ -44,14 +38,14 @@ class UserClass(models.Model):
 class FlashCardSet(models.Model):
     set_id = models.AutoField(primary_key=True)
     set_name = models.CharField(max_length=100)
-    class_model = models.ForeignKey(Class, on_delete=models.CASCADE, blank=True, null=True)
+    class_model = models.ForeignKey(ClassTable, on_delete=models.CASCADE, blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.set_name} by {self.user.username}"
 
 
-class FlashCard(models.Model):
+class FlashCards(models.Model):
     card_id = models.AutoField(primary_key=True)
     flash_card_set = models.ForeignKey(FlashCardSet, on_delete=models.CASCADE)
     question = models.CharField(max_length=255)
