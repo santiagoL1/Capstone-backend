@@ -6,6 +6,18 @@ from .models import User
 from .serializers import LoginSerializer, UserSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import render
+from .services import ExternalAPIService
+#Gemini API Imports
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+#from django.views import View
+from django.utils.decorators import method_decorator
+import json
+import google.generativeai as genai
+from django.conf import settings
+from drf_yasg import openapi
+
 
 class LoginView(APIView):
 
@@ -82,3 +94,114 @@ class UserDetailView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+class GeminiAPI(APIView):
+    """View to handle API calls to Google Gemini."""
+    @swagger_auto_schema(
+        operation_summary="Generate response from Google Gemini",
+        operation_description=(
+            "Accepts a prompt in the request body and generates a response using Google Gemini's generative AI model."
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "prompt": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="The input prompt for the Google Gemini API",
+                )
+            },
+            required=["prompt"],
+        ),
+        responses={
+            200: openapi.Response(
+                description="Successful response from Google Gemini",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "response": openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            description="The generated response from Google Gemini API",
+                        )
+                    },
+                ),
+            ),
+            400: openapi.Response(
+                description="Invalid request",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "error": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Error message describing the issue",
+                        )
+                    },
+                ),
+            ),
+            500: openapi.Response(
+                description="Server error",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "error": openapi.Schema(
+                            type=openapi.TYPE_STRING,
+                            description="Error message describing the issue",
+                        )
+                    },
+                ),
+            ),
+        },
+    )
+
+    def post(self, request, *args, **kwargs):
+        """Handles POST requests for Gemini API responses."""
+        try:
+            # Parse JSON body
+            body = json.loads(request.body)
+            prompt = body.get("prompt", "")
+            
+            if not prompt:
+                return JsonResponse({"error": "Prompt is required."}, status=400)
+
+            # Call Gemini API
+            gemini_response = self.generate_gemini_response(prompt)
+
+            # Return response
+            if "error" in gemini_response:
+                return JsonResponse(gemini_response, status=500)
+
+            return JsonResponse({"response": gemini_response}, status=200)
+        
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON payload."}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": f"Unexpected error: {e}"}, status=500)
+
+    @staticmethod
+    def configure_genai():
+        """Configures Google Generative AI client."""
+        genai.configure(api_key=settings.EXTERNAL_API['API_KEY'])
+
+    @staticmethod
+    def generate_gemini_response(prompt: str, model_name="gemini-1.5-flash"):
+        """Generates a response from the Google Gemini API."""
+        try:
+            # Configure Generative AI client
+            GeminiAPI.configure_genai()
+
+            # Initialize the model
+            model = genai.GenerativeModel(model_name)
+
+            # Generate the content
+            response = model.generate_content(prompt)
+
+            # Convert the response to a serializable format
+            if hasattr(response, 'to_dict'):  # If a helper method exists to convert to a dict
+                return response.to_dict()
+            else:
+                # Manually extract necessary fields
+                return {
+                    "text": response.text,  # Assuming `text` holds the generated content
+                    "metadata": getattr(response, "metadata", {})  # Optional metadata
+                }
+        except Exception as e:
+            return {"error": f"Gemini API error: {e}"}
