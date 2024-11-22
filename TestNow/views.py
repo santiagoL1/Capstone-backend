@@ -1,11 +1,13 @@
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.views import APIView
 from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.views import APIView
 from .models import User
 from .serializers import LoginSerializer, UserSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class LoginView(APIView):
 
@@ -33,30 +35,35 @@ class LoginView(APIView):
             
             # Check the users in the database
             try:
-                all_users = User.objects.all()
-                print(f"QuerySet length: {all_users.count()}")
-                print("All Usernames in DB:")
-                for user in all_users:
-                    print(user.username)
-                    print(user.password_hash)
+            # Authenticate using the Django authentication system
+                user = authenticate(username=username, password=password)
+                if user is not None:
+                    try:
+                        refresh = RefreshToken.for_user(user)
+                    except Exception as token_error:
+                        print(f"Error while generating token: {token_error}")
+                        return Response({'error': f'Error generating token: {str(token_error)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return Response({
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                        'message': 'Login successful'
+                    }, status=status.HTTP_200_OK)
+                else:
+                    # If credentials are incorrect
+                    print("Invalid Credentials for user:", username)
+                    return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
             except Exception as e:
                 print(f"Error occurred while querying users: {e}")
 
-
-            # Authenticate the user
-            if username == user.username and password == user.password_hash: 
-                return Response({'message': 'Login successful', 'user_id': user.user_id}, status=status.HTTP_200_OK)
-            else:
-                # If credentials are incorrect
-                print("Invalid Credentials for user:", username)
-                return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-
+            
         # If serializer validation fails, return errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserDetailView(APIView):
 
+    permission_classes = [IsAuthenticated]
+    
     @swagger_auto_schema(
         operation_description="Get details of a user by ID.",
         responses={
@@ -78,3 +85,4 @@ class UserDetailView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
