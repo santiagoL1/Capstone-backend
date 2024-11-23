@@ -1,10 +1,11 @@
 # urls.py
 from django.urls import path
-from .views import LoginView, UserDetailView
+from .views import LoginView, UserDetailView, GeminiAPI
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('user/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
+    path('gemini/', GeminiAPI.as_view(), name='gemini_api'), 
 ]
 
 
