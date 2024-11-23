@@ -103,6 +103,7 @@ class UserDetailView(APIView):
         
 class GeminiAPI(APIView):
     """View to handle API calls to Google Gemini."""
+    permission_classes = [IsAuthenticated]
     @swagger_auto_schema(
         operation_summary="Generate response from Google Gemini",
         operation_description=(
