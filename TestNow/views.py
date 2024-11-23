@@ -46,6 +46,7 @@ class LoginView(APIView):
                     return Response({
                         'refresh': str(refresh),
                         'access': str(refresh.access_token),
+                        'id': user.id,
                         'message': 'Login successful'
                     }, status=status.HTTP_200_OK)
                 else:
@@ -65,6 +66,7 @@ class UserDetailView(APIView):
     permission_classes = [IsAuthenticated]
     
     @swagger_auto_schema(
+        security=[{'Bearer': []}],  # Add this line to enforce Bearer authentication
         operation_description="Get details of a user by ID.",
         responses={
             200: UserSerializer,
