@@ -8,17 +8,19 @@ from .serializers import LoginSerializer, UserSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.shortcuts import render
-from .services import ExternalAPIService
+#from django.shortcuts import render
+#from .services import ExternalAPIService
 #Gemini API Imports
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+#from django.views.decorators.csrf import csrf_exempt
 #from django.views import View
-from django.utils.decorators import method_decorator
+#from django.utils.decorators import method_decorator
 import json
 import google.generativeai as genai
 from django.conf import settings
 from drf_yasg import openapi
+from rest_framework.permissions import AllowAny
+from rest_framework import serializers
 
 
 class LoginView(APIView):
@@ -212,3 +214,24 @@ class GeminiAPI(APIView):
                 }
         except Exception as e:
             return {"error": f"Gemini API error: {e}"}
+
+class RegisterUserView(APIView):
+    permission_classes = [AllowAny]  # No authentication required to register a new user
+
+    @swagger_auto_schema(
+        operation_description="Register a new user by providing necessary details.",
+        request_body=UserSerializer,
+        responses={
+            201: 'User created successfully',
+            400: 'Validation error',
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        # Use UserSerializer to validate incoming request data
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            # Save the new user to the database
+            serializer.save()
+            return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
+        # If validation fails, return errors
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
