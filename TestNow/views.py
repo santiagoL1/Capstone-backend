@@ -3,24 +3,18 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from .models import User
+from .models import User, ActivityLog
 from .serializers import LoginSerializer, UserSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-#from django.shortcuts import render
-#from .services import ExternalAPIService
-#Gemini API Imports
 from django.http import JsonResponse
-#from django.views.decorators.csrf import csrf_exempt
-#from django.views import View
-#from django.utils.decorators import method_decorator
 import json
 import google.generativeai as genai
 from django.conf import settings
 from drf_yasg import openapi
 from rest_framework.permissions import AllowAny
-from rest_framework import serializers
+from django.utils import timezone
 
 
 class LoginView(APIView):
@@ -41,11 +35,6 @@ class LoginView(APIView):
             # Extract validated data
             username = serializer.validated_data['username']
             password = serializer.validated_data['password']
-
-            # Print provided credentials
-            print("Provided Username:", username)
-            print("Provided Password:", password)
-            print()
             
             # Check the users in the database
             try:
@@ -53,7 +42,13 @@ class LoginView(APIView):
                 user = authenticate(username=username, password=password)
                 if user is not None:
                     try:
+                        user.last_login = timezone.now()
+                        user.save(update_fields=['last_login'])
                         refresh = RefreshToken.for_user(user)
+                        ActivityLog.objects.create(
+                            user=user,
+                            action_done="User logged in"
+                        )
                     except Exception as token_error:
                         print(f"Error while generating token: {token_error}")
                         return Response({'error': f'Error generating token: {str(token_error)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -69,8 +64,7 @@ class LoginView(APIView):
                     return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
             except Exception as e:
                 print(f"Error occurred while querying users: {e}")
-
-            
+      
         # If serializer validation fails, return errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -91,15 +85,24 @@ class UserDetailView(APIView):
     def get(self, request, *args, **kwargs):
         user_id = kwargs.get('user_id')
         if not user_id:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"error: {TypeError}"
+            )
             return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            # Fetch the user details by user ID
-            print(f"Fetching user with user_id: {user_id}")
-            user_instance = User.objects.get(pk=user_id)  # Use a different variable name, like 'user_instance'
-            print(f"Fetching user with user_id: {user_id}")
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"Fetched user details for user_id: {user_id}"
+            )
+            user_instance = User.objects.get(pk=user_id)  
             serializer = UserSerializer(user_instance)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"error user: {user_id} does not exist"
+            )
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
         
@@ -169,6 +172,10 @@ class GeminiAPI(APIView):
             prompt = body.get("prompt", "")
             
             if not prompt:
+                ActivityLog.objects.create(
+                    user=request.user,
+                    action_done=f"Prompt is required: no prompt given"
+                )
                 return JsonResponse({"error": "Prompt is required."}, status=400)
 
             # Call Gemini API
@@ -176,13 +183,29 @@ class GeminiAPI(APIView):
 
             # Return response
             if "error" in gemini_response:
+                ActivityLog.objects.create(
+                    user=request.user,
+                    action_done=f"Error in gemini response: {e}"
+                )
                 return JsonResponse(gemini_response, status=500)
 
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"200 response status for gemini: sucessful query"
+            )
             return JsonResponse({"response": gemini_response}, status=200)
         
         except json.JSONDecodeError:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"Invalid JSON payload: {e}"
+            )
             return JsonResponse({"error": "Invalid JSON payload."}, status=400)
         except Exception as e:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"Exception: {e}"
+            )
             return JsonResponse({"error": f"Unexpected error: {e}"}, status=500)
 
     @staticmethod
@@ -232,6 +255,16 @@ class RegisterUserView(APIView):
         if serializer.is_valid():
             # Save the new user to the database
             serializer.save()
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"New user created: {request.user}"
+            )
             return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         # If validation fails, return errors
+        ActivityLog.objects.create(
+            user=request.user,
+            action_done=f"Error in creating user: {serializer.errors}"
+        )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
