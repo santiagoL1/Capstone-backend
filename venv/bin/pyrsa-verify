@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/whogenkamp3/Computer Science/Capstoner/capstone-backend/venv/bin/python3.12" "$0" "$@"
-' '''
+#!/Users/santiagolizarraga/Desktop/Capstone-backend/venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys
