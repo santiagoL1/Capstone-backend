@@ -297,3 +297,90 @@ class AddGroupMemberView(APIView):
                 return Response({'message': 'User is already a member of the group'}, status=status.HTTP_400_BAD_REQUEST)
         except Group.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+class RemoveGroupMemberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Remove a member from an existing group.",
+        manual_parameters=[
+            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user to remove", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: 'Member removed successfully',
+            404: 'Group not found',
+            400: 'Validation error',
+        }
+    )
+    def post(self, request, group_id, *args, **kwargs):
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            group = Group.objects.get(group_id=group_id)
+            # Parse the members field, remove the member, and update the field
+            members_list = group.members.split(',') if group.members else []
+            if user_id in members_list:
+                members_list.remove(user_id)
+                group.members = ','.join(members_list)
+                group.save()
+                return Response({'message': 'Member removed successfully'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'message': 'User is not a member of the group'}, status=status.HTTP_400_BAD_REQUEST)
+        except Group.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class ChangeGroupNameView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Change the name of an existing group.",
+        manual_parameters=[
+            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
+        ],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'group_name': openapi.Schema(type=openapi.TYPE_STRING, description="New name for the group")
+            },
+            required=['group_name']
+        ),
+        responses={
+            200: 'Group name changed successfully',
+            404: 'Group not found',
+            400: 'Validation error',
+        }
+    )
+    def post(self, request, group_id, *args, **kwargs):
+        group_name = request.data.get('group_name')
+        if not group_name:
+            return Response({'error': 'Group name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            group = Group.objects.get(group_id=group_id)
+            group.group_name = group_name
+            group.save()
+            return Response({'message': 'Group name changed successfully'}, status=status.HTTP_200_OK)
+        except Group.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class DeleteGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Delete an existing group.",
+        manual_parameters=[
+            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
+        ],
+        responses={
+            200: 'Group deleted successfully',
+            404: 'Group not found',
+        }
+    )
+    def delete(self, request, group_id, *args, **kwargs):
+        try:
+            group = Group.objects.get(group_id=group_id)
+            group.delete()
+            return Response({'message': 'Group deleted successfully'}, status=status.HTTP_200_OK)
+        except Group.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)

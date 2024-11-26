@@ -90,4 +90,3 @@ class Group(models.Model):
     
     def __str__(self):
         return self.group_name
-  
