@@ -259,7 +259,7 @@ class AddGroupMemberView(APIView):
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class RemoveGroupMemberView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="Remove a member from an existing group.",
@@ -292,7 +292,7 @@ class RemoveGroupMemberView(APIView):
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class ChangeGroupNameView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="Change the name of an existing group.",
@@ -321,5 +321,26 @@ class ChangeGroupNameView(APIView):
             group.group_name = group_name
             group.save()
             return Response({'message': 'Group name changed successfully'}, status=status.HTTP_200_OK)
+        except Group.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class DeleteGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Delete an existing group.",
+        manual_parameters=[
+            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
+        ],
+        responses={
+            200: 'Group deleted successfully',
+            404: 'Group not found',
+        }
+    )
+    def delete(self, request, group_id, *args, **kwargs):
+        try:
+            group = Group.objects.get(group_id=group_id)
+            group.delete()
+            return Response({'message': 'Group deleted successfully'}, status=status.HTTP_200_OK)
         except Group.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)

@@ -54,16 +54,6 @@ class ClassTable(models.Model):
     def __str__(self):
         return f"{self.class_name} ({self.university})"
 
-
-class UserClass(models.Model):
-    user_class_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    class_model = models.ForeignKey(ClassTable, on_delete=models.CASCADE)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.class_model.class_name}"
-
-
 class FlashCardSet(models.Model):
     set_id = models.AutoField(primary_key=True)
     set_name = models.CharField(max_length=100)
@@ -97,6 +87,7 @@ class Group(models.Model):
     group_id = models.AutoField(primary_key=True)
     group_name = models.CharField(max_length=255)
     members = models.TextField()  
-    
+
     def __str__(self):
         return self.group_name
+  

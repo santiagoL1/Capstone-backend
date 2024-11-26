@@ -1,6 +1,6 @@
 # urls.py
 from django.urls import path
-from .views import LoginView, UserDetailView, GeminiAPI, CreateGroupView, AddGroupMemberView, RemoveGroupMemberView, ChangeGroupNameView
+from .views import LoginView, UserDetailView, GeminiAPI, CreateGroupView, AddGroupMemberView, RemoveGroupMemberView, ChangeGroupNameView, DeleteGroupView
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
@@ -10,6 +10,7 @@ urlpatterns = [
     path('add-group-member/<int:group_id>/', AddGroupMemberView.as_view(), name='add-group-member'),
     path('remove-group-member/<int:group_id>/', RemoveGroupMemberView.as_view(), name='remove-group-member'),
     path('change-group-name/<int:group_id>/', ChangeGroupNameView.as_view(), name='change-group-name'),
+    path('delete-group/<int:group_id>/', DeleteGroupView.as_view(), name='delete-group'),
 ]
 
 
