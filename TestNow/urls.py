@@ -1,6 +1,6 @@
 # urls.py
 from django.urls import path
-from .views import LoginView, UserDetailView, GeminiAPI, CreateGroupView, AddGroupMemberView, RemoveGroupMemberView, ChangeGroupNameView, DeleteGroupView
+from .views import LoginView, UserDetailView, GeminiAPI, CreateGroupView, AddGroupMemberView, RemoveGroupMemberView, ChangeGroupNameView, DeleteGroupView, RegisterUserView
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
@@ -11,6 +11,9 @@ urlpatterns = [
     path('remove-group-member/<int:group_id>/', RemoveGroupMemberView.as_view(), name='remove-group-member'),
     path('change-group-name/<int:group_id>/', ChangeGroupNameView.as_view(), name='change-group-name'),
     path('delete-group/<int:group_id>/', DeleteGroupView.as_view(), name='delete-group'),
+    path('gemini/', GeminiAPI.as_view(), name='gemini_api'),
+    path('register/', RegisterUserView.as_view(), name='register-user'),  # Added new endpoint
 ]
+
 
 

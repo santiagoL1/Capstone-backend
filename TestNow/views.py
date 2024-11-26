@@ -3,8 +3,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from .models import User, Group
-from .serializers import LoginSerializer, UserSerializer, GroupSerializer
+from .models import User
+from .serializers import LoginSerializer, UserSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,6 +13,8 @@ import json
 import google.generativeai as genai
 from django.conf import settings
 from drf_yasg import openapi
+from rest_framework.permissions import AllowAny
+from django.utils import timezone
 
 
 class LoginView(APIView):
@@ -33,11 +35,6 @@ class LoginView(APIView):
             # Extract validated data
             username = serializer.validated_data['username']
             password = serializer.validated_data['password']
-
-            # Print provided credentials
-            print("Provided Username:", username)
-            print("Provided Password:", password)
-            print()
             
             # Check the users in the database
             try:
@@ -45,7 +42,13 @@ class LoginView(APIView):
                 user = authenticate(username=username, password=password)
                 if user is not None:
                     try:
+                        user.last_login = timezone.now()
+                        user.save(update_fields=['last_login'])
                         refresh = RefreshToken.for_user(user)
+                        ActivityLog.objects.create(
+                            user=user,
+                            action_done="User logged in"
+                        )
                     except Exception as token_error:
                         print(f"Error while generating token: {token_error}")
                         return Response({'error': f'Error generating token: {str(token_error)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -61,8 +64,7 @@ class LoginView(APIView):
                     return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
             except Exception as e:
                 print(f"Error occurred while querying users: {e}")
-
-            
+      
         # If serializer validation fails, return errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -83,15 +85,24 @@ class UserDetailView(APIView):
     def get(self, request, *args, **kwargs):
         user_id = kwargs.get('user_id')
         if not user_id:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"error: {TypeError}"
+            )
             return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            # Fetch the user details by user ID
-            print(f"Fetching user with user_id: {user_id}")
-            user_instance = User.objects.get(pk=user_id)  # Use a different variable name, like 'user_instance'
-            print(f"Fetching user with user_id: {user_id}")
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"Fetched user details for user_id: {user_id}"
+            )
+            user_instance = User.objects.get(pk=user_id)  
             serializer = UserSerializer(user_instance)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"error user: {user_id} does not exist"
+            )
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
         
@@ -161,6 +172,10 @@ class GeminiAPI(APIView):
             prompt = body.get("prompt", "")
             
             if not prompt:
+                ActivityLog.objects.create(
+                    user=request.user,
+                    action_done=f"Prompt is required: no prompt given"
+                )
                 return JsonResponse({"error": "Prompt is required."}, status=400)
 
             # Call Gemini API
@@ -168,13 +183,29 @@ class GeminiAPI(APIView):
 
             # Return response
             if "error" in gemini_response:
+                ActivityLog.objects.create(
+                    user=request.user,
+                    action_done=f"Error in gemini response: {e}"
+                )
                 return JsonResponse(gemini_response, status=500)
 
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"200 response status for gemini: sucessful query"
+            )
             return JsonResponse({"response": gemini_response}, status=200)
         
         except json.JSONDecodeError:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"Invalid JSON payload: {e}"
+            )
             return JsonResponse({"error": "Invalid JSON payload."}, status=400)
         except Exception as e:
+            ActivityLog.objects.create(
+                user=request.user,
+                action_done=f"Exception: {e}"
+            )
             return JsonResponse({"error": f"Unexpected error: {e}"}, status=500)
 
     @staticmethod
@@ -206,141 +237,3 @@ class GeminiAPI(APIView):
                 }
         except Exception as e:
             return {"error": f"Gemini API error: {e}"}
-
-class CreateGroupView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_description="Create a new group.",
-        request_body=GroupSerializer,
-        responses={
-            201: 'Group created successfully',
-            400: 'Validation error',
-        }
-    )
-    def post(self, request, *args, **kwargs):
-        serializer = GroupSerializer(data=request.data)
-        if serializer.is_valid():
-            group = serializer.save()
-            return Response({'message': 'Group created successfully', 'group_id': group.group_id}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class AddGroupMemberView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_description="Add a new member to an existing group.",
-        manual_parameters=[
-            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
-            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user to add", type=openapi.TYPE_STRING),
-        ],
-        responses={
-            200: 'Member added successfully',
-            404: 'Group not found',
-            400: 'Validation error',
-        }
-    )
-    def post(self, request, group_id, *args, **kwargs):
-        user_id = request.query_params.get('user_id')
-        if not user_id:
-            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            group = Group.objects.get(group_id=group_id)
-            # Parse the members field, add the new member, and update the field
-            members_list = group.members.split(',') if group.members else []
-            if user_id not in members_list:
-                members_list.append(user_id)
-                group.members = ','.join(members_list)
-                group.save()
-                return Response({'message': 'Member added successfully'}, status=status.HTTP_200_OK)
-            else:
-                return Response({'message': 'User is already a member of the group'}, status=status.HTTP_400_BAD_REQUEST)
-        except Group.DoesNotExist:
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-
-class RemoveGroupMemberView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_description="Remove a member from an existing group.",
-        manual_parameters=[
-            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
-            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user to remove", type=openapi.TYPE_STRING),
-        ],
-        responses={
-            200: 'Member removed successfully',
-            404: 'Group not found',
-            400: 'Validation error',
-        }
-    )
-    def post(self, request, group_id, *args, **kwargs):
-        user_id = request.query_params.get('user_id')
-        if not user_id:
-            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            group = Group.objects.get(group_id=group_id)
-            # Parse the members field, remove the member, and update the field
-            members_list = group.members.split(',') if group.members else []
-            if user_id in members_list:
-                members_list.remove(user_id)
-                group.members = ','.join(members_list)
-                group.save()
-                return Response({'message': 'Member removed successfully'}, status=status.HTTP_200_OK)
-            else:
-                return Response({'message': 'User is not a member of the group'}, status=status.HTTP_400_BAD_REQUEST)
-        except Group.DoesNotExist:
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-
-class ChangeGroupNameView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_description="Change the name of an existing group.",
-        manual_parameters=[
-            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
-        ],
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'group_name': openapi.Schema(type=openapi.TYPE_STRING, description="New name for the group")
-            },
-            required=['group_name']
-        ),
-        responses={
-            200: 'Group name changed successfully',
-            404: 'Group not found',
-            400: 'Validation error',
-        }
-    )
-    def post(self, request, group_id, *args, **kwargs):
-        group_name = request.data.get('group_name')
-        if not group_name:
-            return Response({'error': 'Group name is required'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            group = Group.objects.get(group_id=group_id)
-            group.group_name = group_name
-            group.save()
-            return Response({'message': 'Group name changed successfully'}, status=status.HTTP_200_OK)
-        except Group.DoesNotExist:
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-
-class DeleteGroupView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_description="Delete an existing group.",
-        manual_parameters=[
-            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
-        ],
-        responses={
-            200: 'Group deleted successfully',
-            404: 'Group not found',
-        }
-    )
-    def delete(self, request, group_id, *args, **kwargs):
-        try:
-            group = Group.objects.get(group_id=group_id)
-            group.delete()
-            return Response({'message': 'Group deleted successfully'}, status=status.HTTP_200_OK)
-        except Group.DoesNotExist:
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)

@@ -6,9 +6,23 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(required=True, write_only=True)
 
 class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
     class Meta:
         model = User
-        fields = ['email', 'first_name', 'last_name', 'university', 'username']
+        fields = ['username', 'password', 'email', 'first_name', 'last_name', 'university']  
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            university=validated_data.get('university', '')
+        )
+        return user
+
 
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
