@@ -3,8 +3,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from .models import User
-from .serializers import LoginSerializer, UserSerializer
+from .models import User, ActivityLog, Group
+from .serializers import LoginSerializer, UserSerializer, GroupSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -15,6 +15,7 @@ from django.conf import settings
 from drf_yasg import openapi
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
+
 
 
 class LoginView(APIView):
@@ -237,3 +238,62 @@ class GeminiAPI(APIView):
                 }
         except Exception as e:
             return {"error": f"Gemini API error: {e}"}
+
+class CreateGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Create a new group.",
+        request_body=GroupSerializer,
+        responses={
+            201: 'Group created successfully',
+            400: 'Validation error',
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = GroupSerializer(data=request.data)
+        if serializer.is_valid():
+            group = serializer.save()
+            return Response({'message': 'Group created successfully', 'group_id': group.group_id}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AddGroupMemberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Add a new member to an existing group.",
+        manual_parameters=[
+            openapi.Parameter('group_id', openapi.IN_PATH, description="ID of the group", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user to add", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: 'Member added successfully',
+            404: 'Group or user not found',
+            400: 'Validation error',
+        }
+    )
+    def post(self, request, group_id, *args, **kwargs):
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate that the user exists
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Validate that the group exists and add the user to the group if found
+        try:
+            group = Group.objects.get(group_id=group_id)
+            # Parse the members field, add the new member, and update the field
+            members_list = group.members.split(',') if group.members else []
+            if user_id not in members_list:
+                members_list.append(user_id)
+                group.members = ','.join(members_list)
+                group.save()
+                return Response({'message': 'Member added successfully'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'message': 'User is already a member of the group'}, status=status.HTTP_400_BAD_REQUEST)
+        except Group.DoesNotExist:
+            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)

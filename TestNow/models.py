@@ -87,7 +87,7 @@ class Group(models.Model):
     group_id = models.AutoField(primary_key=True)
     group_name = models.CharField(max_length=255)
     members = models.TextField()  
-
+    
     def __str__(self):
         return self.group_name
   
