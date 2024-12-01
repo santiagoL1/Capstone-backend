@@ -43,21 +43,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.username
 
-'''
-class User(models.Model):
-    user_id = models.AutoField(primary_key=True)
-    email = models.CharField(max_length=255, unique=True)
-    first_name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50)
-    university = models.CharField(max_length=100, blank=True, null=True)
-    password_hash = models.CharField(max_length=255)
-    username = models.CharField(max_length=50, unique=True)
-    last_login = models.DateTimeField(blank=True, null=True)
-
-    def __str__(self):
-        return f"{self.username} ({self.email})"
-'''
-
 class ClassTable(models.Model):
     class_id = models.AutoField(primary_key=True)
     class_name = models.CharField(max_length=100)
@@ -107,3 +92,11 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"Log by {self.user.username}: {self.action_done} at {self.timestamp}"
+
+class Group(models.Model):
+    group_id = models.AutoField(primary_key=True)
+    group_name = models.CharField(max_length=255)
+    members = models.TextField()  
+    
+    def __str__(self):
+        return self.group_name
