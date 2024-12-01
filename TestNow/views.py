@@ -6,15 +6,21 @@ from rest_framework.views import APIView
 from .models import User, ActivityLog, Group
 from .serializers import LoginSerializer, UserSerializer, GroupSerializer
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import JsonResponse
 import json
 import google.generativeai as genai
 from django.conf import settings
 from drf_yasg import openapi
-from rest_framework.permissions import AllowAny
 from django.utils import timezone
+import logging
+
+from django.shortcuts import render
+from .services import ExternalAPIService
+#Gemini API Imports
+from django.views.decorators.csrf import csrf_exempt
+#from django.views import View
+from django.utils.decorators import method_decorator
 
 
 
@@ -221,23 +227,30 @@ class GeminiAPI(APIView):
             # Configure Generative AI client
             GeminiAPI.configure_genai()
 
+            logging.debug(f"Response received: {response}")
+            
             # Initialize the model
             model = genai.GenerativeModel(model_name)
+
+            logging.debug(f"Response received: {response}")
 
             # Generate the content
             response = model.generate_content(prompt)
 
             # Convert the response to a serializable format
-            if hasattr(response, 'to_dict'):  # If a helper method exists to convert to a dict
-                return response.to_dict()
+            if hasattr(response, 'text'):
+                generated_text = response.text
             else:
-                # Manually extract necessary fields
-                return {
-                    "text": response.text,  # Assuming `text` holds the generated content
-                    "metadata": getattr(response, "metadata", {})  # Optional metadata
-                }
+                generated_text = "No response generated"
+
+            # Return the response in a serializable format
+            return {
+                "text": generated_text,
+                "metadata": getattr(response, "metadata", {})
+            }
         except Exception as e:
             return {"error": f"Gemini API error: {e}"}
+
 
 class CreateGroupView(APIView):
     permission_classes = [IsAuthenticated]
