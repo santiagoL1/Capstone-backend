@@ -1,10 +1,10 @@
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, viewsets, permissions
 from rest_framework.views import APIView
-from .models import User, Group
-from .serializers import LoginSerializer, UserSerializer, GroupSerializer
+from .models import User, Group, UserClass, ClassTable
+from .serializers import LoginSerializer, UserSerializer, GroupSerializer, ClassSerializer, UserClassSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -19,6 +19,7 @@ import json
 import google.generativeai as genai
 from django.conf import settings
 from drf_yasg import openapi
+from rest_framework.decorators import action
 
 
 class LoginView(APIView):
@@ -410,3 +411,51 @@ class DeleteGroupView(APIView):
             return Response({'message': 'Group deleted successfully'}, status=status.HTTP_200_OK)
         except Group.DoesNotExist:
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+
+
+
+
+
+
+
+class CreateClassAndLinkView(APIView):
+    #permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Create a new class and link it to the user.",
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user", type=openapi.TYPE_INTEGER),
+        ],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'class_name': openapi.Schema(type=openapi.TYPE_STRING, description="Name of the class")
+            },
+            required=['class_name']
+        ),
+        responses={
+            201: 'Class created and linked successfully',
+            400: 'Validation error',
+            404: 'User not found',
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        user_id = request.query_params.get('user_id')
+        class_name = request.data.get('class_name')
+
+        if not user_id or not class_name:
+            return Response({'error': 'User ID and class name are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Create a new class linked to the user's university
+        class_instance = ClassTable.objects.create(class_name=class_name, university=user.university)
+
+        # Link the class to the user via the UserClass model
+        UserClass.objects.create(user=user, class_instance=class_instance)
+
+        return Response({'message': 'Class created and linked successfully', 'class_id': class_instance.class_id}, status=status.HTTP_201_CREATED)

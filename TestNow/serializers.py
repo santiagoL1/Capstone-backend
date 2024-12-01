@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Group
+from .models import User, Group, ClassTable, UserClass
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField(required=True, max_length=150)
@@ -27,3 +27,13 @@ class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = ['group_id', 'group_name', 'members']
+
+class ClassSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClassTable
+        fields = ['class_id', 'class_name', 'university']
+
+class UserClassSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserClass
+        fields = ['user', 'class_instance']
