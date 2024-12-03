@@ -462,3 +462,63 @@ class CreateClassAndLinkView(APIView):
 
 
         return Response({'message': 'Class created and linked successfully', 'class_id': class_instance.class_id}, status=status.HTTP_201_CREATED)
+
+
+
+
+
+class GetUserClassesView(APIView):
+    #permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Retrieve all classes linked to a user.",
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user", type=openapi.TYPE_INTEGER),
+        ],
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'class_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Class ID"),
+                        'class_name': openapi.Schema(type=openapi.TYPE_STRING, description="Class Name"),
+                        'university': openapi.Schema(type=openapi.TYPE_STRING, description="University"),
+                    }
+                )
+            ),
+            404: 'User not found',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        user_id = request.query_params.get('user_id')
+
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Query to get all classes linked to the user
+        user_classes = UserClass.objects.filter(user=user).select_related('class_model')
+        
+        # Extract data efficiently without loops
+        classes_data = user_classes.values(
+            'class_model__class_id',
+            'class_model__class_name',
+            'class_model__university'
+        )
+
+        # Rename keys to match the desired output
+        classes = [
+            {
+                'class_id': entry['class_model__class_id'],
+                'class_name': entry['class_model__class_name'],
+                'university': entry['class_model__university']
+            }
+            for entry in classes_data
+        ]
+
+        return Response(classes, status=status.HTTP_200_OK)
