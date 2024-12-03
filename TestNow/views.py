@@ -449,13 +449,16 @@ class CreateClassAndLinkView(APIView):
 
         try:
             user = User.objects.get(id=user_id)
+            uni = user.university
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Create a new class linked to the user's university
-        class_instance = ClassTable.objects.create(class_name=class_name, university=user.university)
+        class_instance = ClassTable.objects.create(class_name=class_name, university=uni)
 
         # Link the class to the user via the UserClass model
-        UserClass.objects.create(user=user, class_instance=class_instance)
+        #UserClass.objects.create(user=user, class_instance=class_instance)
+        UserClass.objects.create(user=user, class_model=class_instance)
+
 
         return Response({'message': 'Class created and linked successfully', 'class_id': class_instance.class_id}, status=status.HTTP_201_CREATED)
