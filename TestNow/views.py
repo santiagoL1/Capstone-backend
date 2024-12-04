@@ -3,7 +3,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status, viewsets, permissions
 from rest_framework.views import APIView
-from .models import User, Group, UserClass, ClassTable, ActivityLog
+from .models import User, Group, UserClass, ClassTable, FlashCardSet, ActivityLog
 from .serializers import LoginSerializer, UserSerializer, GroupSerializer, ClassSerializer, UserClassSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -479,13 +479,134 @@ class CreateClassAndLinkView(APIView):
 
         try:
             user = User.objects.get(id=user_id)
+            uni = user.university
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Create a new class linked to the user's university
-        class_instance = ClassTable.objects.create(class_name=class_name, university=user.university)
+        class_instance = ClassTable.objects.create(class_name=class_name, university=uni)
 
         # Link the class to the user via the UserClass model
-        UserClass.objects.create(user=user, class_instance=class_instance)
+        #UserClass.objects.create(user=user, class_instance=class_instance)
+        UserClass.objects.create(user=user, class_model=class_instance)
+
 
         return Response({'message': 'Class created and linked successfully', 'class_id': class_instance.class_id}, status=status.HTTP_201_CREATED)
+
+
+
+
+
+class GetUserClassesView(APIView):
+    #permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Retrieve all classes linked to a user.",
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user", type=openapi.TYPE_INTEGER),
+        ],
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'class_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Class ID"),
+                        'class_name': openapi.Schema(type=openapi.TYPE_STRING, description="Class Name"),
+                        'university': openapi.Schema(type=openapi.TYPE_STRING, description="University"),
+                    }
+                )
+            ),
+            404: 'User not found',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        user_id = request.query_params.get('user_id')
+
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Query to get all classes linked to the user
+        user_classes = UserClass.objects.filter(user=user).select_related('class_model')
+        
+        # Extract data efficiently without loops
+        classes_data = user_classes.values(
+            'class_model__class_id',
+            'class_model__class_name',
+            'class_model__university'
+        )
+
+        # Rename keys to match the desired output
+        classes = [
+            {
+                'class_id': entry['class_model__class_id'],
+                'class_name': entry['class_model__class_name'],
+                'university': entry['class_model__university']
+            }
+            for entry in classes_data
+        ]
+
+        return Response(classes, status=status.HTTP_200_OK)
+    
+
+
+
+
+class DeleteUserClassView(APIView):
+    # permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Delete a class associated with a user based on class name, including all related flashcard sets.",
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('class_name', openapi.IN_QUERY, description="Name of the class", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: 'Class and related flashcard sets deleted successfully',
+            400: 'Validation error',
+            404: 'Class or User not found',
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        # Extract query parameters
+        user_id = request.query_params.get('user_id')
+        class_name = request.query_params.get('class_name')
+
+        if not user_id or not class_name:
+            return Response({'error': 'User ID and class name are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Fetch the user
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            # Fetch the UserClass entry and the associated class
+            user_class = UserClass.objects.select_related('class_model').get(
+                user=user, class_model__class_name=class_name
+            )
+
+            # Get the associated class instance
+            class_instance = user_class.class_model
+
+            # Delete all FlashCardSet entries related to the class
+            FlashCardSet.objects.filter(class_model=class_instance).delete()
+
+            # Delete the UserClass entry
+            user_class.delete()
+
+            # Delete the ClassTable entry
+            class_instance.delete()
+
+        except UserClass.DoesNotExist:
+            return Response({'error': 'Class not found for this user'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'message': f'Class \"{class_name}\" and all related flashcard sets deleted successfully for user \"{user.username}\".'
+        }, status=status.HTTP_200_OK)

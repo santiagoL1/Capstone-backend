@@ -48,9 +48,6 @@ class ClassTable(models.Model):
     class_name = models.CharField(max_length=100)
     university = models.CharField(max_length=100, blank=True, null=True)
 
-    class Meta:
-        unique_together = ('class_name', 'university')
-
     def __str__(self):
         return f"{self.class_name} ({self.university})"
 
