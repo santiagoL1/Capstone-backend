@@ -255,16 +255,10 @@ class RegisterUserView(APIView):
         if serializer.is_valid():
             # Save the new user to the database
             serializer.save()
-            ActivityLog.objects.create(
-                user=request.user,
-                action_done=f"New user created: {request.user}"
-            )
+            
             return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         # If validation fails, return errors
-        ActivityLog.objects.create(
-            user=request.user,
-            action_done=f"Error in creating user: {serializer.errors}"
-        )
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 

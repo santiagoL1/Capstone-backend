@@ -1,16 +1,27 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
+# Custom Manager for User model
 class UserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
         if not email:
             raise ValueError('The Email field must be set')
         if not username:
             raise ValueError('The Username field must be set')
+        
+        # Normalize email to ensure it's in lowercase and standardized
         email = self.normalize_email(email)
+        
+        # Create the user instance
         user = self.model(email=email, username=username, **extra_fields)
-        user.set_password(password)  # Hashes the password
+        
+        # If password is provided, hash it using set_password
+        if password:
+            user.set_password(password)
+        
+        # Save the user instance to the database
         user.save(using=self._db)
+        
         return user
 
     def create_superuser(self, email, username, password=None, **extra_fields):
@@ -24,6 +35,8 @@ class UserManager(BaseUserManager):
 
         return self.create_user(email, username, password, **extra_fields)
 
+
+# Custom User model extending AbstractBaseUser
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
     email = models.EmailField(max_length=255, unique=True)
@@ -38,26 +51,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ['email']
 
     objects = UserManager()
-    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.username
 
-'''
-class User(models.Model):
-    user_id = models.AutoField(primary_key=True)
-    email = models.CharField(max_length=255, unique=True)
-    first_name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50)
-    university = models.CharField(max_length=100, blank=True, null=True)
-    password_hash = models.CharField(max_length=255)
-    username = models.CharField(max_length=50, unique=True)
-    last_login = models.DateTimeField(blank=True, null=True)
 
-    def __str__(self):
-        return f"{self.username} ({self.email})"
-'''
-
+# Class models
 class ClassTable(models.Model):
     class_id = models.AutoField(primary_key=True)
     class_name = models.CharField(max_length=100)
@@ -107,3 +106,4 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"Log by {self.user.username}: {self.action_done} at {self.timestamp}"
+
