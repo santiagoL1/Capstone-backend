@@ -3,7 +3,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status, viewsets, permissions
 from rest_framework.views import APIView
-from .models import User, Group, UserClass, ClassTable, FlashCardSet, ActivityLog
+from .models import User, Group, UserClass, ClassTable, FlashCardSet, ActivityLog, FlashCards
 from .serializers import LoginSerializer, UserSerializer, GroupSerializer, ClassSerializer, UserClassSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -21,7 +21,7 @@ from django.conf import settings
 from drf_yasg import openapi
 from rest_framework.decorators import action
 from django.utils import timezone
-
+from django.shortcuts import get_object_or_404
 
 class LoginView(APIView):
 
@@ -610,3 +610,356 @@ class DeleteUserClassView(APIView):
         return Response({
             'message': f'Class \"{class_name}\" and all related flashcard sets deleted successfully for user \"{user.username}\".'
         }, status=status.HTTP_200_OK)
+
+class createFlashCard(APIView):
+    #permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Create a new flashcard",
+        operation_description="This endpoint allows authenticated users to create a new flashcard by providing a question, answer, and set ID.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'set_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the flashcard set'),
+                'question': openapi.Schema(type=openapi.TYPE_STRING, description='Question text for the flashcard'),
+                'answer': openapi.Schema(type=openapi.TYPE_STRING, description='Answer text for the flashcard'),
+            },
+            required=['set_id', 'question', 'answer'],  # Mandatory fields
+        ),
+        responses={
+            201: openapi.Response(
+                description="Flashcard created successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'card_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the created flashcard'),
+                        'set_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the flashcard set'),
+                        'question': openapi.Schema(type=openapi.TYPE_STRING, description='Question text'),
+                        'answer': openapi.Schema(type=openapi.TYPE_STRING, description='Answer text'),
+                    },
+                ),
+            ),
+            400: "Bad Request - Validation Error",
+            401: "Unauthorized - Authentication Required",
+        },
+    )
+    def post(self, request):
+        """
+        Handles the creation of a new flashcard.
+        """
+        data = request.data
+        set_id = data.get('set_id')
+        question = data.get('question')
+        answer = data.get('answer')
+
+        if not all([set_id, question, answer]):
+            return Response({"error": "All fields (set_id, question, answer) are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Save to database
+        flashcard = FlashCards.objects.create(set_id=set_id, question=question, answer=answer)
+
+        return Response({
+            "card_id": flashcard.card_id,
+            "set_id": flashcard.set_id,
+            "question": flashcard.question,
+            "answer": flashcard.answer,
+        }, status=status.HTTP_201_CREATED)
+
+
+class createFlashCardSet(APIView):
+    #permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Create a new flashcard set",
+        operation_description="This endpoint allows authenticated users to create a new flashcard set by providing a set name, class ID, and user ID.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'set_name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the flashcard set'),
+                'class_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the class'),
+                'user_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the user creating the set'),
+            },
+            required=['set_name', 'class_id', 'user_id'],  # Mandatory fields
+        ),
+        responses={
+            201: openapi.Response(
+                description="Flashcard set created successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'set_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the created flashcard set'),
+                        'set_name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the flashcard set'),
+                        'class_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the class'),
+                        'user_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the user'),
+                    },
+                ),
+            ),
+            400: "Bad Request - Validation Error",
+            401: "Unauthorized - Authentication Required",
+        },
+    )
+    def post(self, request, *args, **kwargs):
+        # Extract data from the request body
+        set_name = request.data.get('set_name')
+        class_id = request.data.get('class_id')
+        user_id = request.data.get('user_id')
+
+        if not set_name or not class_id or not user_id:
+            return Response({"error": "All fields (set_name, class_id, user_id) are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Retrieve the Class and User objects
+        class_instance = get_object_or_404(ClassTable, id=class_id)
+        user_instance = get_object_or_404(User, id=user_id)
+
+        # Create a new FlashCardSet instance
+        flashcard_set = FlashCardSet.objects.create(
+            set_name=set_name,
+            class_id=class_instance,
+            user_id=user_instance
+        )
+
+        return Response({"message": "FlashCardSet created successfully."}, status=status.HTTP_201_CREATED)
+    
+    @swagger_auto_schema(
+        operation_summary="Retrieve flashcard sets by user or class",
+        operation_description="This endpoint allows authenticated users to retrieve flashcard sets by providing user ID or class ID as query parameters.",
+        manual_parameters=[
+            openapi.Parameter(
+                'user_id',
+                openapi.IN_QUERY,
+                description="ID of the user whose flashcard sets are to be retrieved",
+                type=openapi.TYPE_INTEGER,
+                required=False,
+            ),
+            openapi.Parameter(
+                'class_id',
+                openapi.IN_QUERY,
+                description="ID of the class whose flashcard sets are to be retrieved",
+                type=openapi.TYPE_INTEGER,
+                required=False,
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="List of flashcard sets",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'set_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the flashcard set'),
+                            'set_name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the flashcard set'),
+                            'class_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the class'),
+                            'user_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the user'),
+                        },
+                    ),
+                ),
+            ),
+            400: "Bad Request - Validation Error",
+            401: "Unauthorized - Authentication Required",
+        },
+    )
+    def get(self, request):
+        """
+        Retrieves flashcard sets by user ID or class ID.
+        """
+        user_id = request.query_params.get('user_id')
+        class_id = request.query_params.get('class_id')
+
+        if not user_id and not class_id:
+            return Response({"error": "Either user_id or class_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Query database
+        query_params = {}
+        if user_id:
+            query_params['user_id'] = user_id
+        if class_id:
+            query_params['class_id'] = class_id
+
+        flashcard_sets = FlashCardSet.objects.filter(**query_params)
+
+        response_data = [
+            {
+                "set_id": flashcard_set.set_id,
+                "set_name": flashcard_set.set_name,
+                "class_id": flashcard_set.class_id,
+                "user_id": flashcard_set.user_id,
+            }
+            for flashcard_set in flashcard_sets
+        ]
+
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+class setLinkToClass(APIView):
+    """
+    Links a flashcard set to a specific class.
+    """
+    def post(self, request, *args, **kwargs):
+        set_id = request.data.get('set_id')
+        class_id = request.data.get('class_id')
+
+        flashcard_set = get_object_or_404(FlashCardSet, id=set_id)
+        class_instance = get_object_or_404(ClassTable, id=class_id)
+
+        # Link the flashcard set to the class
+        flashcard_set.class_id = class_instance
+        flashcard_set.save()
+
+        return Response({"message": "Flashcard set linked to class successfully."}, status=status.HTTP_200_OK)
+
+
+class setLinkToUser(APIView):
+    """
+    Links a flashcard set to a specific user.
+    """
+    def post(self, request, *args, **kwargs):
+        set_id = request.data.get('set_id')
+        user_id = request.data.get('user_id')
+
+        flashcard_set = get_object_or_404(FlashCardSet, id=set_id)
+        user_instance = get_object_or_404(User, id=user_id)
+
+        # Link the flashcard set to the user
+        flashcard_set.user_id = user_instance
+        flashcard_set.save()
+
+        return Response({"message": "Flashcard set linked to user successfully."}, status=status.HTTP_200_OK)
+
+
+class updateFlashCard(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Update a flashcard",
+        operation_description="This endpoint allows updating the question or answer of an existing flashcard.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'card_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the flashcard'),
+                'question': openapi.Schema(type=openapi.TYPE_STRING, description='Updated question text'),
+                'answer': openapi.Schema(type=openapi.TYPE_STRING, description='Updated answer text'),
+            },
+            required=['card_id'],
+        ),
+        responses={
+            200: "Flashcard updated successfully",
+            404: "Flashcard not found",
+            400: "Bad Request - Validation Error",
+        },
+    )
+    def put(self, request):
+        data = request.data
+        card_id = data.get('card_id')
+        question = data.get('question')
+        answer = data.get('answer')
+
+        if not card_id:
+            return Response({"error": "card_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            flashcard = FlashCards.objects.get(card_id=card_id)
+            if question:
+                flashcard.question = question
+            if answer:
+                flashcard.answer = answer
+            flashcard.save()
+
+            return Response({"message": "Flashcard updated successfully."}, status=status.HTTP_200_OK)
+        except FlashCards.DoesNotExist:
+            return Response({"error": "Flashcard not found."}, status=status.HTTP_404_NOT_FOUND)
+
+class updateFlashCardSet(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Update a flashcard set",
+        operation_description="This endpoint allows updating the name of an existing flashcard set.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'set_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the flashcard set'),
+                'set_name': openapi.Schema(type=openapi.TYPE_STRING, description='Updated name of the flashcard set'),
+            },
+            required=['set_id', 'set_name'],
+        ),
+        responses={
+            200: "Flashcard set updated successfully",
+            404: "Flashcard set not found",
+            400: "Bad Request - Validation Error",
+        },
+    )
+    def put(self, request):
+        data = request.data
+        set_id = data.get('set_id')
+        set_name = data.get('set_name')
+
+        if not set_id or not set_name:
+            return Response({"error": "set_id and set_name are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            flashcard_set = FlashCardSet.objects.get(set_id=set_id)
+            flashcard_set.set_name = set_name
+            flashcard_set.save()
+
+            return Response({"message": "Flashcard set updated successfully."}, status=status.HTTP_200_OK)
+        except FlashCardSet.DoesNotExist:
+            return Response({"error": "Flashcard set not found."}, status=status.HTTP_404_NOT_FOUND)
+
+class deleteFlashCard(APIView):
+    
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Delete a flashcard",
+        operation_description="This endpoint deletes a flashcard by its ID.",
+        manual_parameters=[
+            openapi.Parameter('card_id', openapi.IN_QUERY, description='ID of the flashcard to delete', type=openapi.TYPE_INTEGER, required=True),
+        ],
+        responses={
+            200: "Flashcard deleted successfully",
+            404: "Flashcard not found",
+            400: "Bad Request - Validation Error",
+        },
+    )
+    def delete(self, request):
+        card_id = request.query_params.get('card_id')
+
+        if not card_id:
+            return Response({"error": "card_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            flashcard = FlashCards.objects.get(card_id=card_id)
+            flashcard.delete()
+
+            return Response({"message": "Flashcard deleted successfully."}, status=status.HTTP_200_OK)
+        except FlashCards.DoesNotExist:
+            return Response({"error": "Flashcard not found."}, status=status.HTTP_404_NOT_FOUND)
+
+class deleteFlashCardSet(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Delete a flashcard set",
+        operation_description="This endpoint deletes a flashcard set by its ID.",
+        manual_parameters=[
+            openapi.Parameter('set_id', openapi.IN_QUERY, description='ID of the flashcard set to delete', type=openapi.TYPE_INTEGER, required=True),
+        ],
+        responses={
+            200: "Flashcard set deleted successfully",
+            404: "Flashcard set not found",
+            400: "Bad Request - Validation Error",
+        },
+    )
+    def delete(self, request):
+        set_id = request.query_params.get('set_id')
+
+        if not set_id:
+            return Response({"error": "set_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            flashcard_set = FlashCardSet.objects.get(set_id=set_id)
+            flashcard_set.delete()
+
+            return Response({"message": "Flashcard set deleted successfully."}, status=status.HTTP_200_OK)
+        except FlashCardSet.DoesNotExist:
+            return Response({"error": "Flashcard set not found."}, status=status.HTTP_404_NOT_FOUND)
