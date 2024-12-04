@@ -522,3 +522,56 @@ class GetUserClassesView(APIView):
         ]
 
         return Response(classes, status=status.HTTP_200_OK)
+    
+
+
+
+
+class DeleteUserClassView(APIView):
+    # permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Delete a class associated with a user based on class name.",
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('class_name', openapi.IN_QUERY, description="Name of the class", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: 'Class deleted successfully',
+            400: 'Validation error',
+            404: 'Class or User not found',
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        # Extract query parameters
+        user_id = request.query_params.get('user_id')
+        class_name = request.query_params.get('class_name')
+
+        if not user_id or not class_name:
+            return Response({'error': 'User ID and class name are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Fetch the user
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            # Fetch the UserClass entry and the associated class
+            user_class = UserClass.objects.select_related('class_model').get(
+                user=user, class_model__class_name=class_name
+            )
+
+            # Get the associated class instance
+            class_instance = user_class.class_model
+
+            # Delete the UserClass entry
+            user_class.delete()
+
+            # Delete the ClassTable entry
+            class_instance.delete()
+
+        except UserClass.DoesNotExist:
+            return Response({'error': 'Class not found for this user'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({'message': f'Class \"{class_name}\" deleted successfully for user \"{user.username}\".'}, status=status.HTTP_200_OK)
