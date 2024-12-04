@@ -708,14 +708,14 @@ class createFlashCardSet(APIView):
             return Response({"error": "All fields (set_name, class_id, user_id) are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Retrieve the Class and User objects
-        class_instance = get_object_or_404(ClassTable, id=class_id)
+        class_instance = get_object_or_404(ClassTable, class_id=class_id)
         user_instance = get_object_or_404(User, id=user_id)
 
         # Create a new FlashCardSet instance
         flashcard_set = FlashCardSet.objects.create(
             set_name=set_name,
-            class_id=class_instance,
-            user_id=user_instance
+            class_model=class_instance,
+            user=user_instance
         )
 
         return Response({"message": "FlashCardSet created successfully."}, status=status.HTTP_201_CREATED)
