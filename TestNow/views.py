@@ -3,7 +3,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status, viewsets, permissions
 from rest_framework.views import APIView
-from .models import User, Group, UserClass, ClassTable
+from .models import User, Group, UserClass, ClassTable, FlashCardSet
 from .serializers import LoginSerializer, UserSerializer, GroupSerializer, ClassSerializer, UserClassSerializer
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -531,13 +531,13 @@ class DeleteUserClassView(APIView):
     # permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        operation_description="Delete a class associated with a user based on class name.",
+        operation_description="Delete a class associated with a user based on class name, including all related flashcard sets.",
         manual_parameters=[
             openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user", type=openapi.TYPE_INTEGER),
             openapi.Parameter('class_name', openapi.IN_QUERY, description="Name of the class", type=openapi.TYPE_STRING),
         ],
         responses={
-            200: 'Class deleted successfully',
+            200: 'Class and related flashcard sets deleted successfully',
             400: 'Validation error',
             404: 'Class or User not found',
         }
@@ -565,6 +565,9 @@ class DeleteUserClassView(APIView):
             # Get the associated class instance
             class_instance = user_class.class_model
 
+            # Delete all FlashCardSet entries related to the class
+            FlashCardSet.objects.filter(class_model=class_instance).delete()
+
             # Delete the UserClass entry
             user_class.delete()
 
@@ -574,4 +577,6 @@ class DeleteUserClassView(APIView):
         except UserClass.DoesNotExist:
             return Response({'error': 'Class not found for this user'}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({'message': f'Class \"{class_name}\" deleted successfully for user \"{user.username}\".'}, status=status.HTTP_200_OK)
+        return Response({
+            'message': f'Class \"{class_name}\" and all related flashcard sets deleted successfully for user \"{user.username}\".'
+        }, status=status.HTTP_200_OK)
