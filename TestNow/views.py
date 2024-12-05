@@ -612,7 +612,7 @@ class DeleteUserClassView(APIView):
         }, status=status.HTTP_200_OK)
 
 class createFlashCard(APIView):
-    #permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Create a new flashcard",
@@ -624,7 +624,7 @@ class createFlashCard(APIView):
                 'question': openapi.Schema(type=openapi.TYPE_STRING, description='Question text for the flashcard'),
                 'answer': openapi.Schema(type=openapi.TYPE_STRING, description='Answer text for the flashcard'),
             },
-            required=['set_id', 'question', 'answer'],  # Mandatory fields
+            required=['set_id', 'question', 'answer'],
         ),
         responses={
             201: openapi.Response(
@@ -655,12 +655,20 @@ class createFlashCard(APIView):
         if not all([set_id, question, answer]):
             return Response({"error": "All fields (set_id, question, answer) are required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Validate the flashcard set
+        try:
+            flashcard_set = FlashCardSet.objects.get(set_id=set_id)
+        except FlashCardSet.DoesNotExist:
+            return Response({"error": "Flashcard set with the provided set_id does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Save to database
-        flashcard = FlashCards.objects.create(set_id=set_id, question=question, answer=answer)
+        flashcard = FlashCards.objects.create(
+            flash_card_set=flashcard_set, question=question, answer=answer
+        )
 
         return Response({
             "card_id": flashcard.card_id,
-            "set_id": flashcard.set_id,
+            "set_id": flashcard_set.set_id,
             "question": flashcard.question,
             "answer": flashcard.answer,
         }, status=status.HTTP_201_CREATED)
@@ -770,25 +778,33 @@ class createFlashCardSet(APIView):
             return Response({"error": "Either user_id or class_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Query database
-        query_params = {}
+        flashcard_sets = FlashCardSet.objects.all()
         if user_id:
-            query_params['user_id'] = user_id
-        if class_id:
-            query_params['class_id'] = class_id
+            try:
+                user_instance = User.objects.get(id=user_id)
+                flashcard_sets = flashcard_sets.filter(user=user_instance)
+            except User.DoesNotExist:
+                return Response({"error": "User with the provided user_id does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
-        flashcard_sets = FlashCardSet.objects.filter(**query_params)
+        if class_id:
+            try:
+                class_instance = ClassTable.objects.get(class_id=class_id)
+                flashcard_sets = flashcard_sets.filter(class_model=class_instance)
+            except ClassTable.DoesNotExist:
+                return Response({"error": "Class with the provided class_id does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
         response_data = [
             {
                 "set_id": flashcard_set.set_id,
                 "set_name": flashcard_set.set_name,
-                "class_id": flashcard_set.class_id,
-                "user_id": flashcard_set.user_id,
+                "class_id": flashcard_set.class_model.class_id,
+                "user_id": flashcard_set.user.id,
             }
             for flashcard_set in flashcard_sets
         ]
 
         return Response(response_data, status=status.HTTP_200_OK)
+
     
 class setLinkToClass(APIView):
     """
@@ -827,7 +843,7 @@ class setLinkToUser(APIView):
 
 
 class updateFlashCard(APIView):
-    permission_classes = [IsAuthenticated]
+    #permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Update a flashcard",
@@ -869,7 +885,7 @@ class updateFlashCard(APIView):
             return Response({"error": "Flashcard not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class updateFlashCardSet(APIView):
-    permission_classes = [IsAuthenticated]
+    #permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Update a flashcard set",
@@ -907,7 +923,7 @@ class updateFlashCardSet(APIView):
 
 class deleteFlashCard(APIView):
     
-    permission_classes = [IsAuthenticated]
+    #permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Delete a flashcard",
@@ -936,7 +952,7 @@ class deleteFlashCard(APIView):
             return Response({"error": "Flashcard not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class deleteFlashCardSet(APIView):
-    permission_classes = [IsAuthenticated]
+    #permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Delete a flashcard set",
