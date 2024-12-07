@@ -725,6 +725,7 @@ class createFlashCardSet(APIView):
             class_model=class_instance,
             user=user_instance
         )
+        
 
         return Response({"message": "FlashCardSet created successfully."}, status=status.HTTP_201_CREATED)
     
@@ -783,6 +784,8 @@ class createFlashCardSet(APIView):
             try:
                 user_instance = User.objects.get(id=user_id)
                 flashcard_sets = flashcard_sets.filter(user=user_instance)
+                flashcard_sets.user_id = user_instance
+                flashcard_sets.save()
             except User.DoesNotExist:
                 return Response({"error": "User with the provided user_id does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -790,6 +793,8 @@ class createFlashCardSet(APIView):
             try:
                 class_instance = ClassTable.objects.get(class_id=class_id)
                 flashcard_sets = flashcard_sets.filter(class_model=class_instance)
+                flashcard_sets.class_id = class_instance
+                flashcard_sets.save()
             except ClassTable.DoesNotExist:
                 return Response({"error": "Class with the provided class_id does not exist."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -804,43 +809,6 @@ class createFlashCardSet(APIView):
         ]
 
         return Response(response_data, status=status.HTTP_200_OK)
-
-    
-class setLinkToClass(APIView):
-    """
-    Links a flashcard set to a specific class.
-    """
-    def post(self, request, *args, **kwargs):
-        set_id = request.data.get('set_id')
-        class_id = request.data.get('class_id')
-
-        flashcard_set = get_object_or_404(FlashCardSet, id=set_id)
-        class_instance = get_object_or_404(ClassTable, id=class_id)
-
-        # Link the flashcard set to the class
-        flashcard_set.class_id = class_instance
-        flashcard_set.save()
-
-        return Response({"message": "Flashcard set linked to class successfully."}, status=status.HTTP_200_OK)
-
-
-class setLinkToUser(APIView):
-    """
-    Links a flashcard set to a specific user.
-    """
-    def post(self, request, *args, **kwargs):
-        set_id = request.data.get('set_id')
-        user_id = request.data.get('user_id')
-
-        flashcard_set = get_object_or_404(FlashCardSet, id=set_id)
-        user_instance = get_object_or_404(User, id=user_id)
-
-        # Link the flashcard set to the user
-        flashcard_set.user_id = user_instance
-        flashcard_set.save()
-
-        return Response({"message": "Flashcard set linked to user successfully."}, status=status.HTTP_200_OK)
-
 
 class updateFlashCard(APIView):
     #permission_classes = [IsAuthenticated]
