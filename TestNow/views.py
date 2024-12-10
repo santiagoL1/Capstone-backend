@@ -947,8 +947,7 @@ class deleteFlashCardSet(APIView):
             return Response({"message": "Flashcard set deleted successfully."}, status=status.HTTP_200_OK)
         except FlashCardSet.DoesNotExist:
             return Response({"error": "Flashcard set not found."}, status=status.HTTP_404_NOT_FOUND)
-    
-
+        
 class GetUserGroupsView(APIView):
     #permission_classes = [IsAuthenticated]
 
@@ -1007,3 +1006,34 @@ class GetUserGroupsView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class getUniversityName(APIView):
+    """
+    API View to fetch the university name of a user.
+    """
+    #permission_classes = [IsAuthenticated]  # Ensures only authenticated users can access this endpoint
+
+    def get(self, request, *args, **kwargs):
+        try:
+            # Get the authenticated user from the request
+            user = request.user
+
+            # Fetch the university associated with the user
+            university = user.university
+
+            if not university:
+                return Response(
+                    {"error": "University not found for this user."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Return the university name
+            return Response(
+                {"university": university},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            # Handle unexpected errors
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
