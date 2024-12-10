@@ -580,3 +580,63 @@ class DeleteUserClassView(APIView):
         return Response({
             'message': f'Class \"{class_name}\" and all related flashcard sets deleted successfully for user \"{user.username}\".'
         }, status=status.HTTP_200_OK)
+    
+
+class GetUserGroupsView(APIView):
+    #permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Retrieve all groups the user is part of.",
+        manual_parameters=[
+            openapi.Parameter(
+                'user_id', openapi.IN_QUERY, 
+                description="ID of the user", 
+                type=openapi.TYPE_INTEGER
+            ),
+        ],
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'group_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Group ID"),
+                        'group_name': openapi.Schema(type=openapi.TYPE_STRING, description="Group Name"),
+                        'members': openapi.Schema(type=openapi.TYPE_STRING, description="Comma-separated user IDs in the group"),
+                    }
+                )
+            ),
+            404: 'User not found',
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        user_id = request.query_params.get('user_id')
+
+        if not user_id:
+            return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Retrieve groups where the user_id is in the members field
+            user_groups = Group.objects.filter(members__icontains=f"{user_id}")
+            
+            # Filter the groups to include only those where the user ID is a valid member
+            valid_user_groups = [
+                group for group in user_groups 
+                if str(user_id) in group.members.split(',')
+            ]
+
+            # Serialize group data
+            group_data = [
+                {
+                    'group_id': group.group_id,
+                    'group_name': group.group_name,
+                    'members': group.members
+                } 
+                for group in valid_user_groups
+            ]
+
+            return Response(group_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': f'An error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
