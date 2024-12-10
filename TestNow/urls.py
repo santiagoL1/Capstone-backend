@@ -1,6 +1,6 @@
 # urls.py
 from django.urls import path
-from .views import LoginView, UserDetailView, GeminiAPI, CreateGroupView, AddGroupMemberView, RemoveGroupMemberView, ChangeGroupNameView, DeleteGroupView, RegisterUserView, CreateClassAndLinkView, GetUserClassesView, DeleteUserClassView, createFlashCard, createFlashCardSet, updateFlashCard, updateFlashCardSet, deleteFlashCardSet, deleteFlashCard
+from .views import LoginView, UserDetailView, GeminiAPI, CreateGroupView, AddGroupMemberView, RemoveGroupMemberView, ChangeGroupNameView, DeleteGroupView, RegisterUserView, CreateClassAndLinkView, GetUserClassesView, DeleteUserClassView, createFlashCard, createFlashCardSet, updateFlashCard, updateFlashCardSet, deleteFlashCardSet, deleteFlashCard, GetUserGroupsView
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
@@ -21,4 +21,6 @@ urlpatterns = [
     path('flashcardset/update/', updateFlashCardSet.as_view(), name='update_flashcard_set'),
     path('flashcardset/delete/', deleteFlashCardSet.as_view(), name='delete_flashcard_set'),
     path('flashcard/delete/', deleteFlashCard.as_view(), name='delete_flashcard'),
+    path('user/groups/', GetUserGroupsView.as_view(), name='user-groups'),
 ]
+
