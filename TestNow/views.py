@@ -80,7 +80,7 @@ class UserDetailView(APIView):
     permission_classes = [IsAuthenticated]
     
     @swagger_auto_schema(
-        security=[{'Bearer': []}],  # Add this line to enforce Bearer authentication
+        security=[{'Bearer': []}],  # Enforce Bearer authentication
         operation_description="Get details of a user by ID.",
         responses={
             200: UserSerializer,
@@ -91,25 +91,34 @@ class UserDetailView(APIView):
     def get(self, request, *args, **kwargs):
         user_id = kwargs.get('user_id')
         if not user_id:
+            # Log the error in ActivityLog
             ActivityLog.objects.create(
                 user=request.user,
-                action_done=f"error: {TypeError}"
+                action_done=f"error: User ID is required"
             )
             return Response({'error': 'User ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
+            # Log the successful attempt in ActivityLog
             ActivityLog.objects.create(
                 user=request.user,
                 action_done=f"Fetched user details for user_id: {user_id}"
             )
             user_instance = User.objects.get(pk=user_id)  
             serializer = UserSerializer(user_instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+            # Add the user_id to the response data
+            response_data = serializer.data
+            response_data['user_id'] = user_instance.id
+            
+            return Response(response_data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
+            # Log the error in ActivityLog
             ActivityLog.objects.create(
                 user=request.user,
                 action_done=f"error user: {user_id} does not exist"
             )
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
 
         
 class GeminiAPI(APIView):
@@ -450,7 +459,7 @@ class DeleteGroupView(APIView):
 
 
 class CreateClassAndLinkView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="Create a new class and link it to the user.",
@@ -498,7 +507,7 @@ class CreateClassAndLinkView(APIView):
 
 
 class GetUserClassesView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="Retrieve all classes linked to a user.",
@@ -558,7 +567,7 @@ class GetUserClassesView(APIView):
 
 
 class DeleteUserClassView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="Delete a class associated with a user based on class name, including all related flashcard sets.",
@@ -612,7 +621,7 @@ class DeleteUserClassView(APIView):
         }, status=status.HTTP_200_OK)
 
 class createFlashCard(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Create a new flashcard",
@@ -675,7 +684,7 @@ class createFlashCard(APIView):
 
 
 class createFlashCardSet(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Create a new flashcard set",
@@ -811,7 +820,7 @@ class createFlashCardSet(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
 class updateFlashCard(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Update a flashcard",
@@ -853,7 +862,7 @@ class updateFlashCard(APIView):
             return Response({"error": "Flashcard not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class updateFlashCardSet(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Update a flashcard set",
@@ -891,7 +900,7 @@ class updateFlashCardSet(APIView):
 
 class deleteFlashCard(APIView):
     
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Delete a flashcard",
@@ -920,7 +929,7 @@ class deleteFlashCard(APIView):
             return Response({"error": "Flashcard not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class deleteFlashCardSet(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_summary="Delete a flashcard set",
@@ -949,7 +958,7 @@ class deleteFlashCardSet(APIView):
             return Response({"error": "Flashcard set not found."}, status=status.HTTP_404_NOT_FOUND)
         
 class GetUserGroupsView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         operation_description="Retrieve all groups the user is part of.",
